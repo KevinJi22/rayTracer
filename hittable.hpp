@@ -2,10 +2,13 @@
 #define HITTABLE_H
 
 #include "ray.hpp"
+#include "useful_defs.hpp"
+class material;
 
 struct hit_record {
     point3 p;
     vec3 normal;
+    shared_ptr<material> mat_ptr;
     bool front_face;
     double t;
 

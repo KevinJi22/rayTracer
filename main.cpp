@@ -3,14 +3,24 @@
 #include "hittableList.hpp"
 #include "sphere.hpp"
 #include "camera.hpp"
+#include "material.hpp"
 
 #include <iostream>
 
 
-color ray_color(const ray& r, const hittable& world) {
+color ray_color(const ray& r, const hittable& world, int depth) {
     hit_record rec;
-    if (world.hit(r, 0, infinity, rec)) {
-        return 0.5 * (rec.normal + color(1, 1, 1));
+
+    // ray bounce limit
+    if (depth <= 0) {
+        return color(0, 0, 0);
+    }
+    if (world.hit(r, 0.001, infinity, rec)) {
+        ray scattered;
+        color attenuation;
+        if (rec.mat_ptr->scatter(r, rec, attenuation, scattered))
+            return attenuation*ray_color(scattered, world, depth-1);
+        return color(0, 0, 0);
     }
     vec3 unit_direction = unit_vector(r.direction());
     auto t = 0.5*(unit_direction.y() + 1.0);
@@ -23,16 +33,21 @@ int main() {
     const int imageWidth = 384;
     const int imageHeight = static_cast<int>(imageWidth / aspect_ratio);
     const int samples_per_pixel = 100;
+    const int max_depth = 50;
 
     std::cout << "P3\n" << imageWidth << ' ' << imageHeight << "\n255\n";
-    point3 lower_left_corner(-2.0, -1.0, -1.0);
-    point3 origin(0.0, 0.0, 0.0);
-    vec3 horizontal(4.0, 0.0, 0.0);
-    vec3 vertical(0.0, 2.25, 0.0);
-    
+
     hittable_list world;
-    world.add(make_shared<sphere>(point3(0, 0, -1), 0.5));
-    world.add(make_shared<sphere>(point3(0, -100.5, -1), 100));
+
+    world.add(make_shared<sphere>(
+        point3(0,0,-1), 0.5, make_shared<lambertian>(color(0.7, 0.3, 0.3))));
+
+    world.add(make_shared<sphere>(
+        point3(0,-100.5,-1), 100, make_shared<lambertian>(color(0.8, 0.8, 0.0))));
+
+    world.add(make_shared<sphere>(point3(1,0,-1), 0.5, make_shared<metal>(color(.8, .6, .2), 0.0)));
+    world.add(make_shared<sphere>(point3(-1,0,-1), 0.5, make_shared<metal>(color(.8,.8,.8), 0.3)));
+    
     camera cam;
 
     for (int j = imageHeight-1; j >= 0; --j) {
@@ -40,10 +55,10 @@ int main() {
         for (int i = 0; i < imageWidth; ++i) {
             color pixelColor(0, 0, 0);
             for (int s = 0; s < samples_per_pixel; ++s) {
-                auto u = double(i + random_double()) / (imageWidth - 1);  
-                auto v = double(j + random_double()) / (imageHeight - 1);
+                auto u = (i + random_double()) / (imageWidth - 1);  
+                auto v = (j + random_double()) / (imageHeight - 1);
                 ray r = cam.get_ray(u, v);
-                pixelColor += ray_color(r, world);
+                pixelColor += ray_color(r, world, max_depth);
                
             }
             writeColor(std::cout, pixelColor, samples_per_pixel);
